@@ -1,7 +1,7 @@
 import requests
 
 # உன் Telegram Details - மாத்தாதே, ஏற்கனவே இருக்குறதே இருக்கட்டும்
-TELEGRAM_BOT_TOKEN = "9045379420:AAHi0JGX_rMwUhaHbwAf3dOSrkOwyzdo8lo"
+TELEGRAM_BOT_TOKEN = 9045379420:AAFvMBrVdtk-V73qtfWE4rvo2mhJ6-IFr9Q"
 TELEGRAM_CHAT_ID = "7995294715"
 def send_msg(text):
     try:
