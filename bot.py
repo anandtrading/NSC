@@ -1,8 +1,8 @@
 import requests
 
-# உன் Telegram Details - மாத்தாதே, ஏற்கனவே இருக்குறதே இருக்கட்டும்
-TELEGRAM_BOT_TOKEN = "9045379420:AAFvMBrVdtk-V73qtfWE4rvo2mhJ6-IFr9Q"
+TELEGRAM_BOT_TOKEN = "YOUR_NEW_TOKEN_HERE"
 TELEGRAM_CHAT_ID = "7995294715"
+
 def send_msg(text):
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -17,56 +17,80 @@ def get_yahoo_price(symbol):
         r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10).json()
         meta = r['chart']['result'][0]['meta']
         price = meta['regularMarketPrice']
-        prev_close = meta['chartPreviousClose']
-        change = price - prev_close
-        change_pct = (change / prev_close) * 100
-        return price, change, change_pct
+        prev = meta['chartPreviousClose']
+        ch = price - prev
+        pct = (ch / prev) * 100
+        return price, ch, pct
     except:
-        return 0, 0, 0
+        return 0,0,0
 
-# World Market Data எடுக்குறோம்
-dow_price, dow_change, dow_pct = get_yahoo_price("%5EDJI")  # Dow Jones
-nasdaq_price, nasdaq_change, nasdaq_pct = get_yahoo_price("%5EIXIC") # Nasdaq
-sp_price, sp_change, sp_pct = get_yahoo_price("%5EGSPC") # S&P 500
-sensex_price, sensex_change, sensex_pct = get_yahoo_price("%5EBSESN") # Sensex
+# Data Fetch
+dow_p, dow_c, dow_pct = get_yahoo_price("%5EDJI")
+nas_p, nas_c, nas_pct = get_yahoo_price("%5EIXIC")
+gift_p, gift_c, gift_pct = get_yahoo_price("%5ENSEI") # GIFT Nifty Proxy Nifty 50
+bank_p, bank_c, bank_pct = get_yahoo_price("%5ENSEBANK") # Bank Nifty
+nifty_p, nifty_c, nifty_pct = get_yahoo_price("%5ENSEI")
+crude_p, crude_c, crude_pct = get_yahoo_price("BZ=F") # Brent Crude
 
-# Scoring System
-bear_score = 0
-bull_score = 0
+# Pro Scoring
+score = 0
+reasons = []
 
-if dow_change < -100: bear_score += 2
-elif dow_change > 100: bull_score += 2
+# 1. GIFT Logic
+if gift_pct > 0.3: 
+    score += 2
+    reasons.append(f"GIFT Up {gift_pct:+.2f}%")
+elif gift_pct < -0.3:
+    score -= 2
+    reasons.append(f"GIFT Down {gift_pct:+.2f}%")
 
-if nasdaq_pct < -0.5: bear_score += 1
-elif nasdaq_pct > 0.5: bull_score += 1
+# 2. BankNifty Strong Logic - இன்னைக்கு நடந்தது மாதிரி
+if bank_pct > nifty_pct + 0.3:
+    score += 2
+    reasons.append(f"Bank Strong {bank_pct:+.2f}% > Nifty {nifty_pct:+.2f}% => Recovery Chance")
+elif bank_pct < nifty_pct - 0.3:
+    score -= 1
+    reasons.append(f"Bank Weak")
 
-if sp_pct < -0.3: bear_score += 1
-elif sp_pct > 0.3: bull_score += 1
-
-# Final Signal Decision
-if bear_score >= 2:
-    signal = "🔴 *WORLD MARKET BEARISH - PUT BUY*\n🎯 73300 PUT எடு!\n💡 Target: 200 Pts\n⚠️ US Market Down-னால India-வும் Down!"
-    trade_type = "PUT"
-elif bull_score >= 2:
-    signal = "🟢 *WORLD MARKET BULLISH - CALL BUY*\n🎯 73600 CALL எடு!\n💡 Target: 200 Pts\n🚀 US Market Up-னால India-வும் Up!"
-    trade_type = "CALL"
+# 3. Crude Oil Logic
+if crude_p > 115:
+    score -= 2
+    reasons.append(f"Crude High ${crude_p:.0f} Bearish")
 else:
-    signal = "🟡 *MIXED SIGNALS - WAIT*\nWorld Market Sideways, 9:30 வரை Wait!"
-    trade_type = "WAIT"
+    score += 1
+    reasons.append(f"Crude Ok ${crude_p:.0f}")
 
-msg = f"""🚀 *ANAND WORLD MARKET BOT*
-⏰ 9:10 AM Signal
+# 4. US Market
+if dow_pct > 0.2 and nas_pct > 0.3:
+    score += 1
+    reasons.append(f"US Up Dow {dow_pct:+.2f}%")
 
-🌍 *WORLD MARKET:*
-🇺🇸 Dow: {dow_change:+.0f} ({dow_pct:+.2f}%)
-💻 Nasdaq: {nasdaq_pct:+.2f}%
-📊 S&P 500: {sp_pct:+.2f}%
+# Final Decision
+if score >= 2:
+    action = "🟢 *PRO BOT: CALL BUY - RECOVERY EXPECTED*\n🎯 Target: BankNifty Support + Auto Buying"
+    strike = "Sensex 73500 CALL / BankNifty 55500 CALL"
+elif score <= -2:
+    action = "🔴 *PRO BOT: PUT BUY - GAP DOWN CONTINUE*\n🎯 Crude + FPI Selling Pressure"
+    strike = "Sensex 73300 PUT / Nifty 22700 PUT"
+else:
+    action = "🟡 *PRO BOT: WAIT & WATCH - MIXED*\n9:25 வரை BankNifty-ஐ பாரு"
+    strike = "No Trade Now"
 
-📍 *INDIA:*
-Sensex: {sensex_price:.0f} ({sensex_change:+.0f})
+msg = f"""🚀 *ANAND PRO WORLD + SECTOR BOT*
+⏰ Signal
 
-{signal}
+🌍 GIFT: {gift_pct:+.2f}% | {gift_p:.0f}
+🏦 Bank: {bank_pct:+.2f}% | Nifty: {nifty_pct:+.2f}%
+🛢️ Crude: ${crude_p:.0f}
+🇺🇸 US Dow: {dow_pct:+.2f}% | Nasdaq: {nas_pct:+.2f}%
+
+📊 *Logic:*
+{chr(10).join(['- '+r for r in reasons])}
+
+{action}
+💰 Strike: {strike}
+Score: {score}
 """
 
 send_msg(msg)
-print("Done")
+print("Pro Bot Done")
